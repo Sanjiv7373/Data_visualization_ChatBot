@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VizBot - Chart Visualization</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.16/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gradient-to-r from-green-300 to-blue-300 min-h-screen flex flex-col justify-between">
+    <div id="chatContainer" class="hidden fixed bottom-20 right-0 w-2/5 bg-white rounded-lg shadow-lg">
+        <div class="bg-gradient-to-r from-green-500 to-blue-500 text-white font-bold p-2 rounded-tl-lg">
+            VizBot
+        </div>
+        <div id="chatContent" class="max-h-[calc(90vh - 150px)] overflow-y-auto p-4">
+            <!-- Chat messages and charts will be displayed here -->
+        </div>
+        <div class="bottom-0 flex p-2 border-t border-gray-300 bg-white rounded-bl-lg">
+            <input id="userInput" class="w-full border-none rounded-l-md p-2 focus:outline-none" placeholder="Ask VizBot...">
+            <button id="submitButton" class="w-1/5 bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-r-lg p-2 ml-1 cursor-pointer hover:bg-gradient-to-r hover:from-blue-500 hover:to-green-500 focus:outline-none">Draw</button>
+        </div>
+    </div>
+
+    <div id="chatToggle" class="fixed bottom-3 right-6 bg-gradient-to-r from-green-500 to-blue-500 border-none rounded-full p-2 cursor-pointer hover:bg-gradient-to-r hover:from-blue-500 hover:to-green-500">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="white" class="w-9 h-9">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
+        </svg>
+    </div>
+    <div id="chartPopup" class="fixed top-0 left-0 w-full h-full bg-black bg-opacity-70 flex justify-center items-center z-9999 hidden">
+        <div id="chartPopupContent" class="bg-white p-4 rounded-lg shadow-lg">
+            <div class="flex justify-between items-center">
+                <h2 class="text-lg font-semibold">Chart</h2>
+                <button id="closePopup" class="text-gray-600 hover:text-gray-800 cursor-pointer">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div id="popupChartContainer" class="max-w-full h-auto">
+                <!-- Chart to be displayed in the popup -->
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* Style for chat messages */
+        #chatContent {
+            max-height: calc(80vh - 150px); 
+            overflow-y: auto; 
+            padding: 10px; 
+        }
+    
+        .message-container {
+            display: flex;
+            margin-bottom: 10px;
+            justify-content: flex-end; 
+        }
+    
+        .message-bubble {
+            background-color: #4B5563;
+            padding: 10px;
+            border-radius: 10px;
+            max-width: 80%;
+            word-wrap: break-word;
+            color: white;
+        }
+    
+        .bot-message-container {
+            display: flex;
+            margin-bottom: 10px;
+            justify-content: flex-start;
+        }
+    
+        .bot-message-bubble {
+            background-color: #1E40AF;
+            padding: 10px;
+            border-radius: 10px;
+            max-width: 80%;
+            word-wrap: break-word;
+            color: white;
+        }
+    
+   
+        .chart-message {
+            margin-bottom: 10px;
+            justify-content: flex-end; 
+        }
+    
+        .bot-chart-message {
+            margin-bottom: 10px;
+            justify-content: flex-start; 
+        }
+    
+        .chart-container {
+            padding: 10px;
+            border-radius: 10px;
+            max-width: 100%;
+            word-wrap: break-word;
+            color: white;
+            display: block; 
+        }
+    
+        .chart-eye {
+            background: none;
+            border: none;
+            padding: 0;
+            margin: 0;
+            cursor: pointer;
+            outline: none;
+        }
+    </style>
+
+<!-- Include the Plotly library -->
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const chatToggle = document.getElementById("chatToggle");
+        const chatContainer = document.getElementById("chatContainer");
+        const chartContainer = document.getElementById("chartContainer");
+        const popupContainer = document.getElementById("chartPopup");
+        const popupChartContainer = document.getElementById("popupChartContainer");
+        const closePopup = document.getElementById("closePopup");
+        const userInput = document.getElementById("userInput");
+        const submitButton = document.getElementById("submitButton");
+        const chatContent = document.getElementById("chatContent");
+
+        let chartHistory = [];
+
+        chatToggle.addEventListener("click", function () {
+            chatContainer.classList.toggle("hidden");
+        });
+
+        function appendUserMessage(message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message-container`;
+            messageDiv.innerHTML = `<div class="message-bubble">${message}</div>`;
+            chatContent.appendChild(messageDiv);
+
+            // Scroll to the bottom to show the new message
+            chatContent.scrollTop = chatContent.scrollHeight;
+        }
+
+        function appendBotMessage(message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `bot-message-container`;
+            messageDiv.innerHTML = `<div class="bot-message-bubble">${message}</div>`;
+            chatContent.appendChild(messageDiv);
+
+            // Scroll to the bottom to show the new message
+            chatContent.scrollTop = chatContent.scrollHeight;
+        }
+
+        function appendUserChart(chartJSON) {
+            // Create a new chart as a message
+            const chartDiv = document.createElement('div');
+            chartDiv.className = 'chart-message';
+            chartDiv.innerHTML = `<div class="chart-container">
+                <h4>Chart:</h4>
+                <button class="chart-eye"><div id="chartMessageContainer-${chartHistory.length}"></div></button>
+                
+            </div>`;
+            chatContent.appendChild(chartDiv);
+
+            // Create the chart within the chart message container
+            const chartMessageContainer = chartDiv.querySelector(`#chartMessageContainer-${chartHistory.length}`);
+            Plotly.newPlot(
+                chartMessageContainer,
+                JSON.parse(chartJSON).data,
+                JSON.parse(chartJSON).layout
+            );
+
+            // Scroll to the bottom to show the new chart message
+            chatContent.scrollTop = chatContent.scrollHeight;
+
+            // Add a click event listener to the eye icon
+            const eyeIcon = chartDiv.querySelector('.chart-eye');
+            eyeIcon.addEventListener('click', function () {
+                // Show the chart in the popup
+                const chartClone = chartMessageContainer.cloneNode(true);
+                popupChartContainer.innerHTML = '';
+                popupChartContainer.appendChild(chartClone);
+                popupContainer.classList.remove("hidden");
+            });
+        }
+
+        function appendBotChart(chartJSON) {
+            // Create a new chart as a message
+            const chartDiv = document.createElement('div');
+            chartDiv.className = 'bot-chart-message';
+            chartDiv.innerHTML = `<div class="chart-container">
+                <h4>Chart:</h4>
+                <button class="chart-eye">👁️</button>
+                <div id="chartMessageContainer-${chartHistory.length}"></div>
+            </div>`;
+            chatContent.appendChild(chartDiv);
+
+            // Create the chart within the chart message container
+            const chartMessageContainer = chartDiv.querySelector(`#chartMessageContainer-${chartHistory.length}`);
+            Plotly.newPlot(
+                chartMessageContainer,
+                JSON.parse(chartJSON).data,
+                JSON.parse(chartJSON).layout
+            );
+
+            // Scroll to the bottom to show the new chart message
+            chatContent.scrollTop = chatContent.scrollHeight;
+
+            // Add a click event listener to the eye icon
+            const eyeIcon = chartDiv.querySelector('.chart-eye');
+            eyeIcon.addEventListener('click', function () {
+                // Show the chart in the popup
+                const chartClone = chartMessageContainer.cloneNode(true);
+                popupChartContainer.innerHTML = '';
+                popupChartContainer.appendChild(chartClone);
+                popupContainer.classList.remove("hidden");
+            });
+        }
+
+        closePopup.addEventListener("click", function () {
+            // Close the popup
+            popupContainer.classList.add("hidden");
+        });
+
+        async function fetchResponse(userQuery) {
+            const response = await fetch("/chartbot", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ user_input: userQuery }),
+            });
+
+            if (response.ok) {
+                const responseData = await response.json();
+
+                // Append the user's message
+                appendUserMessage(userQuery);
+
+                
+
+                if (responseData.chart) {
+
+                    // Append the bot's response
+                    appendBotMessage("Here's the information you requested!");
+                    // Append the user's chart
+                    appendUserChart(responseData.chart);
+                    
+                }
+                else {
+                    appendBotMessage("No Graph Data Found Or Check your prompt");
+                }
+            }
+        }
+
+        submitButton.addEventListener("click", async function () {
+            const userQuery = userInput.value;
+
+            if (userQuery.trim() === "") {
+                return; // Don't send empty messages
+            }
+            await fetchResponse(userQuery);
+            userInput.value = ''; // Clear input
+        });
+    });
+</script>
+</body>
+</html>

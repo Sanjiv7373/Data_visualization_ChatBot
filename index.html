@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zia Bot - Chart Visualization</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.16/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .chat {
+            height: 100% px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            overflow-y: scroll;
+            padding: 10px;
+            background-color: #f5f5f5;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .user-message {
+            background-color: #4caf50;
+            color: white;
+            text-align: right;
+        }
+        .zia-message {
+            background-color: #2196f3;
+            color: white;
+            text-align: left;
+        }
+        .chart-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mx-auto mt-10 text-center">
+        <h1 class="text-3xl font-semibold mb-4">Zia Bot - Chart Visualization</h1>
+        <div class="chat" id="chatContainer"></div>
+        <div class="input-container mt-4">
+            <input id="userInput" class="border rounded-lg p-2 w-full" placeholder="Ask Zia...">
+            <button id="submitButton" class="bg-blue-500 text-white px-4 py-2 rounded-lg mt-2">Send</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const chatContainer = document.getElementById("chatContainer");
+            const userInput = document.getElementById("userInput");
+            const submitButton = document.getElementById("submitButton");
+
+            let chartMessages = [];
+
+            function appendMessage(message, sender) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}-message`;
+                messageDiv.innerText = message;
+                chatContainer.appendChild(messageDiv);
+            }
+
+            async function fetchChart(userQuery) {
+                const response = await fetch("/chartbot", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ user_input: userQuery }),
+                });
+
+                if (response.ok) {
+                    const responseData = await response.json();
+                    const chartJSON = responseData.chart;
+
+                    const parsedChartJSON = JSON.parse(chartJSON);
+
+                    // Create a new chart container
+                    const newChartDiv = document.createElement('div');
+                    newChartDiv.className = 'chart-image';
+                    chatContainer.appendChild(newChartDiv);
+
+                    // Create a new chart in the new container
+                    const newChart = Plotly.newPlot(
+                        newChartDiv,
+                        parsedChartJSON.data,
+                        parsedChartJSON.layout
+                    );
+
+                    // Store the chart and its user query in the array
+                    chartMessages.push({ chartDiv: newChartDiv, userQuery });
+
+                    // Scroll to the bottom to show the new chart
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                }
+            }
+
+            submitButton.addEventListener("click", async function () {
+                const userQuery = userInput.value;
+
+                appendMessage(userQuery, 'user');
+                userInput.value = ''; // Clear input
+
+                await fetchChart(userQuery);
+
+                const ziaResponse = "Here's the chart you requested!";
+                appendMessage(ziaResponse, 'zia');
+            });
+        });
+    </script>
